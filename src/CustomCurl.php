@@ -53,14 +53,6 @@ class CustomCurl
 		$this->setURL($base_url);
 		$this->_curl = $this->_defaultCurl;
 		$this->_methodRequest = self::METHOD_REQUEST_GET;
-
-		/*$this->setDefaultUserAgent();
-		$this->setDefaultJsonDecoder();
-		$this->setDefaultTimeout();
-		$this->setOpt(CURLINFO_HEADER_OUT, true);
-		$this->setOpt(CURLOPT_HEADERFUNCTION, array($this, 'headerCallback'));
-		$this->setOpt(CURLOPT_RETURNTRANSFER, true);
-		$this->headers = new CaseInsensitiveArray();*/
 	}
 
 
@@ -73,7 +65,6 @@ class CustomCurl
 	{
 		$this->_baseUrl = $url;
 		$this->url = $this->_buildURL($url, $data);
-//		$this->setOpt(CURLOPT_URL, $this->url);
 		return $this;
 	}
 
