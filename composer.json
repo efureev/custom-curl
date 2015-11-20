@@ -1,0 +1,22 @@
+{
+  "name": "efureev/custom-curl",
+  "version": "0.1",
+  "description": "php wrapper for console curl",
+  "keywords": ["curl", "console"],
+  "homepage": "https://github.com/efureev/custom-curl",
+  "type": "lib",
+  "license": "Apache-2.0",
+  "authors": [
+    {
+      "name": "efureev"
+    }
+  ],
+  "require": {
+    "php": ">=5.3"
+  },
+  "autoload": {
+    "psr-4": {
+      "efureev\\": "src/"
+    }
+  }
+}
