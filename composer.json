@@ -2,7 +2,7 @@
   "name": "efureev/custom-curl",
   "version": "0.1",
   "description": "php wrapper for console curl",
-  "keywords": ["curl", "console"],
+  "keywords": ["curl", "console", "cryptopro"],
   "homepage": "https://github.com/efureev/custom-curl",
   "type": "lib",
   "license": "Apache-2.0",
