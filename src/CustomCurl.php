@@ -13,18 +13,34 @@ class CustomCurl
 
 	const DEFAULT_TIMEOUT = 30;
 
+	const METHOD_REQUEST_POST = 'POST';
+	const METHOD_REQUEST_GET = 'GET';
+	const METHOD_REQUEST_DELETE = 'DELETE';
+	const METHOD_REQUEST_OPTIONS = 'OPTIONS';
+
 	private $_id = null;
 	private $_baseUrl = null;
 	private $_curl = null;
 	private $_defaultCurl = 'curl';
 
+	private $_methodRequest = null;
+
+	/** @var bool Details */
+	private $_verbose = false;
+
+	private $_file = null;
+
 	public $url = null;
 
 	private $_cmd = '';
 
-	public $requestHeaders = null;
-	public $responseHeaders = null;
-	public $rawResponseHeaders = '';
+	/** @var null|array  */
+	private $_requestHeaders = null;
+
+
+	private $_completeFn = null;
+	private $_beforeSendFn = null;
+
 	/** @var null|string  */
 	private $_response = null;
 	/** @var null|array  */
@@ -36,6 +52,7 @@ class CustomCurl
 		$this->_id = 1;
 		$this->setURL($base_url);
 		$this->_curl = $this->_defaultCurl;
+		$this->_methodRequest = self::METHOD_REQUEST_GET;
 
 		/*$this->setDefaultUserAgent();
 		$this->setDefaultJsonDecoder();
@@ -71,26 +88,128 @@ class CustomCurl
 	}
 
 	/**
+	 * @param $key
+	 * @param $value
+	 * @return $this
+	 */
+	public function setHeader($key, $value)
+	{
+		$this->_requestHeaders[$key] = $value;
+		return $this;
+	}
+
+	/**
+	 * @param array $headers
+	 * @return $this
+	 */
+	public function setHeaders(array $headers)
+	{
+		foreach ($headers as $key => $value) {
+			$this->setHeader($key, $value);
+		}
+		return $this;
+	}
+
+	public function sendFile($pathToFile)
+	{
+		if (file_exists($pathToFile)) {
+			$this->_methodRequest = self::METHOD_REQUEST_POST;
+			$this->_file = $pathToFile;
+		}
+		return $this;
+	}
+
+	/**
+	 * Headers to inline
+	 * @return string
+	 */
+	private function _inlineHeaders()
+	{
+		$line = array();
+		foreach($this->_requestHeaders as $key => $value) {
+			$value = addslashes($value);
+			$line[] = '-H "'.$key.':'.$value.'"';
+		}
+
+		return implode(' ',$line);
+	}
+
+	/**
+	 * @return string
+	 */
+	private function _inlineVerbose()
+	{
+		return $this->_verbose ? '-v' : '';
+	}
+
+	/**
+	 * @return string
+	 */
+	private function _inlineMethodRequest()
+	{
+		return '-X ' .$this->_methodRequest;
+	}
+
+	/**
+	 * @return string
+	 */
+	private function _inlineFile()
+	{
+		return $this->_file !== null ? '-d @' .$this->_file : '';
+	}
+
+	/**
 	 * @param null $url
 	 * @return $this
 	 * @throws \Exception
 	 */
 	public function request($url = null)
 	{
+		$this->_buildCommand();
+
 		$this->beforeExec();
 		$this->exec($url);
 		$this->afterExec();
 		return $this;
 	}
 
+	/**
+	 * @param null $url
+	 * @return CustomCurl
+	 */
+	public function post($url = null)
+	{
+		$this->_methodRequest = self::METHOD_REQUEST_POST;
+		return $this->request($url);
+	}
+
+	public function get($url = null)
+	{
+		$this->_methodRequest = self::METHOD_REQUEST_GET;
+		return $this->request($url);
+	}
+
+	public function delete($url = null)
+	{
+		$this->_methodRequest = self::METHOD_REQUEST_DELETE;
+		return $this->request($url);
+	}
+
+	public function options($url = null)
+	{
+		$this->_methodRequest = self::METHOD_REQUEST_OPTIONS;
+		return $this->request($url);
+	}
+
 	public function beforeExec()
 	{
-		$this->_buildCommand();
+		$this->call($this->_beforeSendFn);
 	}
 
 	public function afterExec()
 	{
 		$this->_response = implode(PHP_EOL,$this->_rawResponse);
+		$this->call($this->_completeFn);
 	}
 
 	/**
@@ -120,12 +239,31 @@ class CustomCurl
 	}
 
 	/**
+	 * @param string|null $response
+	 * @return $this
+	 */
+	public function setResponse($response)
+	{
+		$this->_response = $response;
+		return $this;
+	}
+
+	/**
+	 * @return $this
+	 */
+	public function enableDebug()
+	{
+		$this->_verbose = true;
+		return  $this;
+	}
+
+	/**
 	 * @param bool|true $full
 	 * @return string
 	 */
 	public function getCmd($full = true)
 	{
-		$this->beforeExec();
+		$this->_buildCommand();
 		return $full ? $this->_finalBuildCommand($this->url) : $this->_cmd;
 	}
 
@@ -143,16 +281,12 @@ class CustomCurl
 	{
 		$cmd[] = $this->_curl;
 
+		$cmd[] = $this->_inlineMethodRequest();
+		$cmd[] = $this->_inlineHeaders();
+		$cmd[] = $this->_inlineFile();
+		$cmd[] = $this->_inlineVerbose();
+
 		$this->_cmd = implode(' ', $cmd);
-
-
-		/*
-		 * $cmd.= " -d @$fname";
-        $cmd.=" -H \"Content-Type: text/xml\"";
-
-        $cmd.=" $url";
-
-		 */
 	}
 
 	/**
@@ -162,5 +296,29 @@ class CustomCurl
 	private function _finalBuildCommand($url)
 	{
 		return $this->_cmd . ' ' . $url;
+	}
+
+	public function complete(callable $callback)
+	{
+		$this->_completeFn = $callback;
+		return $this;
+	}
+
+	public function beforeSend(callable $callback)
+	{
+		$this->_beforeSendFn = $callback;
+	}
+
+	/**
+	 *
+	 */
+	public function call()
+	{
+		$args = func_get_args();
+		$function = array_shift($args);
+		if (is_callable($function)) {
+			array_unshift($args, $this);
+			call_user_func_array($function, $args);
+		}
 	}
 }
