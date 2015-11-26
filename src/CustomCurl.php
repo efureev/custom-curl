@@ -9,7 +9,7 @@ namespace efureev;
  */
 class CustomCurl
 {
-	const VERSION = '0.1';
+	const VERSION = '0.2';
 
 	const DEFAULT_TIMEOUT = 30;
 
@@ -30,12 +30,14 @@ class CustomCurl
 
 	private $_file = null;
 
+	private $_userAgent = null;
+
 	public $url = null;
 
 	private $_cmd = '';
 
 	/** @var null|array  */
-	private $_requestHeaders = null;
+	private $_requestHeaders = [];
 
 
 	private $_completeFn = null;
@@ -53,6 +55,7 @@ class CustomCurl
 		$this->setURL($base_url);
 		$this->_curl = $this->_defaultCurl;
 		$this->_methodRequest = self::METHOD_REQUEST_GET;
+		$this->setDefaultUserAgent();
 	}
 
 
@@ -110,6 +113,47 @@ class CustomCurl
 		return $this;
 	}
 
+	public function setDefaultUserAgent()
+	{
+		$userAgent = 'Custom-Curl/' . self::VERSION . ' (+https://github.com/efureev/custom-curl)';
+		$userAgent .= ' PHP/' . PHP_VERSION;
+		$curlInfo = $this->getCurlInfo();
+		$userAgent .= ' curl/' . $curlInfo['info']['1'];
+		$this->setUserAgent($userAgent);
+	}
+
+	public function setUserAgent($userAgent)
+	{
+		$this->_userAgent = $userAgent;
+		return $this;
+	}
+
+	/**
+	 * Get curl's lib info
+	 *
+	 * @return array
+	 */
+	private function getCurlInfo()
+	{
+		$cmd = $this->_curl . ' -V';
+		exec($cmd, $output);
+
+		$features = preg_replace('/Features: /','',$output[2]);
+		$features = explode(' ',$features);
+
+		$protocols = preg_replace('/Protocols:: /','',$output[1]);
+		$protocols = explode(' ',$protocols);
+
+		$info = explode(' ',$output[0]);
+
+		return [
+			'info' => $info,
+			'features' => $features,
+			'protocols' => $protocols,
+		];
+
+	}
+
 	/**
 	 * Headers to inline
 	 * @return string
@@ -131,6 +175,11 @@ class CustomCurl
 	private function _inlineVerbose()
 	{
 		return $this->_verbose ? '-v' : '';
+	}
+
+	private function _inlineUserAgent()
+	{
+		return $this->_userAgent ? '-A "'.$this->_userAgent.'"' : '';
 	}
 
 	/**
@@ -273,9 +322,11 @@ class CustomCurl
 		$cmd[] = $this->_curl;
 
 		$cmd[] = $this->_inlineMethodRequest();
+		$cmd[] = $this->_inlineUserAgent();
 		$cmd[] = $this->_inlineHeaders();
 		$cmd[] = $this->_inlineFile();
 		$cmd[] = $this->_inlineVerbose();
+		$cmd = array_filter($cmd);
 
 		$this->_cmd = implode(' ', $cmd);
 	}
