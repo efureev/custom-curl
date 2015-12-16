@@ -30,6 +30,8 @@ class CustomCurl
 
 	private $_file = null;
 
+	private $_body = null;
+
 	private $_userAgent = null;
 
 	public $url = null;
@@ -101,6 +103,20 @@ class CustomCurl
 		foreach ($headers as $key => $value) {
 			$this->setHeader($key, $value);
 		}
+		return $this;
+	}
+
+	public function setBody($body)
+	{
+		$this->_methodRequest = self::METHOD_REQUEST_POST;
+		$this->_body = $body;
+		return $this;
+	}
+
+	public function setJson($json)
+	{
+		$json = json_encode($json);
+		$this->setBody($json);
 		return $this;
 	}
 
@@ -199,6 +215,14 @@ class CustomCurl
 	}
 
 	/**
+	 * @return string
+	 */
+	private function _inlineBody()
+	{
+		return $this->_body !== null ? '-d "' .addslashes($this->_body).'"' : '';
+	}
+
+	/**
 	 * @param null $url
 	 * @return $this
 	 * @throws \Exception
@@ -279,6 +303,16 @@ class CustomCurl
 	}
 
 	/**
+	 * @return null|string
+	 */
+	public function getResponseJson()
+	{
+		if (empty($this->_response))
+			return null;
+		return self::decode($this->_response);
+	}
+
+	/**
 	 * @param string|null $response
 	 * @return $this
 	 */
@@ -325,6 +359,7 @@ class CustomCurl
 		$cmd[] = $this->_inlineUserAgent();
 		$cmd[] = $this->_inlineHeaders();
 		$cmd[] = $this->_inlineFile();
+		$cmd[] = $this->_inlineBody();
 		$cmd[] = $this->_inlineVerbose();
 		$cmd = array_filter($cmd);
 
@@ -361,6 +396,37 @@ class CustomCurl
 		if (is_callable($function)) {
 			array_unshift($args, $this);
 			call_user_func_array($function, $args);
+		}
+	}
+
+	protected static function decode($json, $asArray = true)
+	{
+		if (is_array($json)) {
+			throw new \Exception('Invalid JSON data.');
+		}
+		$decode = json_decode((string) $json, $asArray);
+		static::handleJsonError(json_last_error());
+
+		return $decode;
+	}
+
+	protected static function handleJsonError($lastError)
+	{
+		switch ($lastError) {
+			case JSON_ERROR_NONE:
+				break;
+			case JSON_ERROR_DEPTH:
+				throw new \Exception('The maximum stack depth has been exceeded.');
+			case JSON_ERROR_CTRL_CHAR:
+				throw new \Exception('Control character error, possibly incorrectly encoded.');
+			case JSON_ERROR_SYNTAX:
+				throw new \Exception('Syntax error.');
+			case JSON_ERROR_STATE_MISMATCH:
+				throw new \Exception('Invalid or malformed JSON.');
+			case JSON_ERROR_UTF8:
+				throw new \Exception('Malformed UTF-8 characters, possibly incorrectly encoded.');
+			default:
+				throw new \Exception('Unknown JSON decoding error.');
 		}
 	}
 }
